@@ -14,3 +14,7 @@ def save(data: bytes) -> str:
 
 def file_path(key: str) -> Path:
     return Path(settings.storage_dir) / key
+
+
+def delete(key: str) -> None:
+    file_path(key).unlink(missing_ok=True)

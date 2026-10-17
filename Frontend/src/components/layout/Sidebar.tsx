@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, useViewingAs } from '@/store';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,7 @@ export const Sidebar: React.FC = () => {
   const setSidebarCollapsed = useStore((s) => s.setSidebarCollapsed);
   const viewingAs = useViewingAs();
   const navigate = useNavigate();
+  const location = useLocation();
   const pushToast = useStore((s) => s.pushToast);
 
   const visibleNav = NAV_ITEMS.filter((item) => item.roles.includes(viewingAs));
@@ -136,8 +137,13 @@ export const Sidebar: React.FC = () => {
             size="sm"
             className="w-full whitespace-nowrap"
             onClick={() => {
-              navigate('/projects');
-              pushToast({ title: 'Open a project to create a task', variant: 'default' });
+              const projectMatch = location.pathname.match(/^\/projects\/([^/]+)\/?$/);
+              if (projectMatch) {
+                window.dispatchEvent(new Event('agencydesk:create-task'));
+              } else {
+                navigate('/projects');
+                pushToast({ title: 'Open a project to create a task', variant: 'default' });
+              }
             }}
           >
             <Plus size={14} />

@@ -109,6 +109,8 @@ interface AppState {
   removeTaskAssignee(userId: string): void;
   addComment(comment: Comment): Promise<Comment>;
   uploadTaskFile(taskId: string, file: File, visibility: ProjectFile['visibility'], progress?: (percent: number) => void): Promise<ProjectFile>;
+  updateFileVisibility(id: string, visibility: ProjectFile['visibility']): Promise<void>;
+  deleteFile(id: string): Promise<void>;
   updateFileReview(id: string, status: ProjectFile['reviewStatus'], note: string | null): Promise<void>;
   addTimeEntry(entry: TimeEntry): Promise<TimeEntry>;
   addInvite(invite: Invite): Promise<{ invite: Invite; token: string }>;
@@ -453,16 +455,13 @@ export const useStore = create<AppState>()(immer((set, get) => ({
   },
 
   async loadProjectFiles(projectId) {
-    const projectTasks = get().tasks.filter((task) => task.projectId === projectId);
     set((state) => { state.fileState.loading = true; state.fileState.error = null; });
     try {
-      const loaded = (await Promise.all(projectTasks.map((task) => filesApi.listFiles(task.id))))
-        .flat()
-        .map((file) => ({
-          ...mapFile(file),
-          workspaceId: get().session?.workspaceId ?? '',
-          projectId,
-        }));
+      const loaded = (await filesApi.listProjectFiles(projectId)).map((file) => ({
+        ...mapFile(file),
+        workspaceId: get().session?.workspaceId ?? '',
+        projectId,
+      }));
       set((state) => {
         state.files = [...state.files.filter((file) => file.projectId !== projectId), ...loaded];
         state.fileState = { data: state.files, loading: false, error: null };
@@ -653,6 +652,23 @@ export const useStore = create<AppState>()(immer((set, get) => ({
       state.fileState.data = state.files;
     });
     return saved;
+  },
+
+  async updateFileVisibility(id, visibility) {
+    const result = await filesApi.updateFileVisibility(id, visibility === 'client' ? 'client_visible' : 'internal');
+    set((state) => {
+      const file = state.files.find((item) => item.id === id);
+      if (file) file.visibility = result.visibility === 'client_visible' ? 'client' : 'internal';
+      state.fileState.data = state.files;
+    });
+  },
+
+  async deleteFile(id) {
+    await filesApi.deleteFile(id);
+    set((state) => {
+      state.files = state.files.filter((file) => file.id !== id);
+      state.fileState.data = state.files;
+    });
   },
 
   async updateFileReview(id, status, note) {

@@ -32,8 +32,10 @@ def comment_scope(p: Principal, alias: str = "c") -> str:
 
 
 def file_scope(p: Principal, alias: str = "f") -> str:
-    scope = f"""EXISTS (SELECT 1 FROM tasks t WHERE t.id = {alias}.task_id
-        AND t.agency_id = {alias}.agency_id AND {task_scope(p, 't')})"""
+    scope = f"""EXISTS (SELECT 1 FROM tasks t JOIN projects p
+        ON p.id = t.project_id AND p.agency_id = t.agency_id
+        WHERE t.id = {alias}.task_id AND t.agency_id = {alias}.agency_id
+        AND {project_scope(p, 'p')})"""
     return scope + (f" AND {alias}.visibility = 'client_visible'" if p.role == "client_user" else "")
 
 

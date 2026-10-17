@@ -3,6 +3,15 @@ import type { ApiFile } from './types';
 
 export const listFiles = (taskId: string) =>
   request<ApiFile[]>(`/tasks/${encodeURIComponent(taskId)}/files`);
+export const listProjectFiles = (projectId: string) =>
+  request<ApiFile[]>(`/projects/${encodeURIComponent(projectId)}/files`);
+export const updateFileVisibility = (id: string, visibility: 'internal' | 'client_visible') =>
+  request<{ id: string; visibility: ApiFile['visibility'] }>(`/files/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ visibility }),
+  });
+export const deleteFile = (id: string) =>
+  request<{ deleted: boolean }>(`/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
 export const uploadFile = (taskId: string, file: File, visibility: string, onProgress?: (percent: number) => void) => {
   const form = new FormData();
   form.set('file', file);

@@ -21,6 +21,6 @@ I had designed the schema such that it satisfies all the requirements of roles b
 Created a Users Table, whose purpose is to handle Authentication, and authorization is handled by respective
 entities or tables
 
-`access.py` is the shared visibility boundary. Agency admins see agency projects, members see projects they belong to, and clients see only their client's projects. Task access builds on project access and further restricts clients to client-visible tasks; comments and files additionally require client-visible item visibility. Detail helpers turn missing, cross-tenant, and hidden identifiers into the same 404.
+`access.py` is the shared visibility boundary. Agency admins see agency projects, members see projects they belong to, and clients see only their client's projects. Task access builds on project access and further restricts clients to client-visible tasks. Comments require a visible task and client-visible item visibility; files are project-scoped and clients only see client-visible files, even when a file is attached to an internal task. Detail helpers turn missing, cross-tenant, and hidden identifiers into the same 404.
 
 Users are global identities with no role. A user can have a separate membership and role per agency; login returns the eligible workspaces, then workspace selection signs a token for one active membership. Every workspace request checks that membership again, immediately invalidating removed members.

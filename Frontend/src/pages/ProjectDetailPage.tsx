@@ -408,6 +408,12 @@ export const ProjectDetailPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [viewingAs]);
 
+  useEffect(() => {
+    const handler = () => setNewTaskOpen(true);
+    window.addEventListener('agencydesk:create-task', handler);
+    return () => window.removeEventListener('agencydesk:create-task', handler);
+  }, []);
+
   if (!projectId) return <div>Not found</div>;
 
   if (notFound) {

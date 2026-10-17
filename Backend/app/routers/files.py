@@ -8,10 +8,10 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from ..access import file_scope, log, params, visible_task
+from ..access import file_scope, log, params, visible_project, visible_task
 from ..config import settings
 from ..deps import Principal, agency_only, get_conn, get_principal
-from ..storage import file_path, save
+from ..storage import delete as delete_stored_file, file_path, save
 
 router = APIRouter(tags=["files"])
 
@@ -19,6 +19,10 @@ router = APIRouter(tags=["files"])
 class Review(BaseModel):
     status: Literal["approved", "changes_requested"]
     note: str | None = None
+
+
+class FileVisibility(BaseModel):
+    visibility: Literal["internal", "client_visible"]
 
 
 @router.post("/tasks/{task_id}/files", status_code=201)
@@ -53,6 +57,19 @@ def list_files(task_id: UUID, p: Principal = Depends(get_principal),
     return [dict(row) for row in rows]
 
 
+@router.get("/projects/{project_id}/files")
+def list_project_files(project_id: UUID, p: Principal = Depends(get_principal),
+                       conn: Connection = Depends(get_conn)):
+    visible_project(conn, p, project_id)
+    rows = conn.execute(text(f"""
+        SELECT f.id, f.agency_id, f.task_id, f.uploaded_by, f.original_name, f.mime_type,
+               f.size_bytes, f.visibility, f.review_status, f.reviewed_at, f.review_note, f.created_at
+        FROM files f JOIN tasks t ON t.id = f.task_id AND t.agency_id = f.agency_id
+        WHERE t.project_id = :pid AND {file_scope(p)} ORDER BY f.created_at
+    """), {**params(p), "pid": project_id}).mappings().all()
+    return [dict(row) for row in rows]
+
+
 @router.get("/files/{file_id}/download")
 def download_file(file_id: UUID, p: Principal = Depends(get_principal),
                   conn: Connection = Depends(get_conn)):
@@ -62,6 +79,37 @@ def download_file(file_id: UUID, p: Principal = Depends(get_principal),
         raise HTTPException(404, "File not found")
     path = file_path(row["storage_key"])
     return FileResponse(path, media_type=row["mime_type"], filename=row["original_name"])
+
+
+@router.patch("/files/{file_id}")
+def update_file_visibility(file_id: UUID, body: FileVisibility,
+                           p: Principal = Depends(agency_only), conn: Connection = Depends(get_conn)):
+    row = conn.execute(text(f"""
+        UPDATE files f SET visibility = :visibility
+        WHERE f.id = :id AND {file_scope(p)}
+        RETURNING f.id, f.visibility
+    """), {**params(p), "id": file_id, "visibility": body.visibility}).mappings().first()
+    if row is None:
+        raise HTTPException(404, "File not found")
+    log(conn, p, "file.visibility_updated", {
+        "file_id": str(file_id), "visibility": body.visibility,
+    })
+    return dict(row)
+
+
+@router.delete("/files/{file_id}")
+def delete_file(file_id: UUID, p: Principal = Depends(agency_only),
+                conn: Connection = Depends(get_conn)):
+    row = conn.execute(text(f"""
+        SELECT f.storage_key FROM files f WHERE f.id = :id AND {file_scope(p)}
+    """), {**params(p), "id": file_id}).mappings().first()
+    if row is None:
+        raise HTTPException(404, "File not found")
+    conn.execute(text(f"DELETE FROM files f WHERE f.id = :id AND {file_scope(p)}"),
+                 {**params(p), "id": file_id})
+    log(conn, p, "file.deleted", {"file_id": str(file_id)})
+    delete_stored_file(row["storage_key"])
+    return {"deleted": True}
 
 
 @router.post("/files/{file_id}/review")

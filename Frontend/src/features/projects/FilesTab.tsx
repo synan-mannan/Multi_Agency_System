@@ -3,7 +3,7 @@ import { useStore, useViewingAs, useCurrentWorkspaceId } from '@/store';
 import { downloadFile } from '@/api/files';
 import { Badge, Button, Select, Label, Textarea, EmptyState } from '@/components/ui';
 import { reviewConfig, formatDateShort, cn } from '@/lib/utils';
-import { Upload, FileText, Check, RefreshCw, Paperclip, Download } from 'lucide-react';
+import { Upload, FileText, Check, RefreshCw, Paperclip, Download, Trash2 } from 'lucide-react';
 import type { ProjectFile, FileReviewStatus, Visibility } from '@/types';
 
 function VisibilityBadge({ v }: { v: Visibility }) {
@@ -98,6 +98,8 @@ export const FilesTab: React.FC<{ projectId: string }> = ({ projectId }) => {
   const workspaceId = useCurrentWorkspaceId();
   const pushToast = useStore((s) => s.pushToast);
   const uploadTaskFile = useStore((s) => s.uploadTaskFile);
+  const updateFileVisibility = useStore((s) => s.updateFileVisibility);
+  const deleteFile = useStore((s) => s.deleteFile);
   const loadProjectFiles = useStore((s) => s.loadProjectFiles);
   const allFiles = useStore((s) => s.files);
   const allTasks = useStore((s) => s.tasks);
@@ -109,6 +111,7 @@ export const FilesTab: React.FC<{ projectId: string }> = ({ projectId }) => {
   const [uploadVisibility, setUploadVisibility] = useState<Visibility>('client');
   const [uploadTaskId, setUploadTaskId] = useState('');
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [fileActionId, setFileActionId] = useState<string | null>(null);
 
   const files = allFiles.filter((file) => file.workspaceId === workspaceId && file.projectId === projectId);
 
@@ -153,6 +156,31 @@ export const FilesTab: React.FC<{ projectId: string }> = ({ projectId }) => {
     e.preventDefault();
     setIsDraggingOver(false);
     Array.from(e.dataTransfer.files).forEach((file) => void uploadSelectedFile(file));
+  };
+
+  const handleVisibilityChange = async (file: ProjectFile, visibility: Visibility) => {
+    setFileActionId(file.id);
+    try {
+      await updateFileVisibility(file.id, visibility);
+      pushToast({ title: `"${file.name}" visibility updated`, variant: 'success' });
+    } catch (error) {
+      pushToast({ title: 'File visibility could not be updated', description: error instanceof Error ? error.message : 'Request failed', variant: 'error' });
+    } finally {
+      setFileActionId(null);
+    }
+  };
+
+  const handleDelete = async (file: ProjectFile) => {
+    if (!window.confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
+    setFileActionId(file.id);
+    try {
+      await deleteFile(file.id);
+      pushToast({ title: `"${file.name}" deleted`, variant: 'success' });
+    } catch (error) {
+      pushToast({ title: 'File could not be deleted', description: error instanceof Error ? error.message : 'Request failed', variant: 'error' });
+    } finally {
+      setFileActionId(null);
+    }
   };
 
   return (
@@ -229,11 +257,34 @@ export const FilesTab: React.FC<{ projectId: string }> = ({ projectId }) => {
                     <p className="text-xs text-zinc-500">{file.size} · {uploader?.name} · {formatDateShort(file.createdAt)}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {viewingAs !== 'client' && <VisibilityBadge v={file.visibility} />}
+                    {viewingAs !== 'client' ? (
+                      <Select
+                        aria-label={`Visibility for ${file.name}`}
+                        value={file.visibility}
+                        onChange={(value) => void handleVisibilityChange(file, value as Visibility)}
+                        options={[
+                          { value: 'client', label: '👁 Client-visible' },
+                          { value: 'internal', label: '🔒 Internal' },
+                        ]}
+                        disabled={fileActionId === file.id}
+                        className="w-36 h-8 text-xs"
+                      />
+                    ) : <VisibilityBadge v={file.visibility} />}
                     <ReviewBadge status={file.reviewStatus} />
-                    <Button variant="ghost" size="sm" onClick={() => void downloadFile(file.id).catch((error: unknown) => pushToast({ title: 'Download failed', description: error instanceof Error ? error.message : 'Request failed', variant: 'error' }))}>
+                    <Button variant="ghost" size="sm" aria-label={`Download ${file.name}`} onClick={() => void downloadFile(file.id).catch((error: unknown) => pushToast({ title: 'Download failed', description: error instanceof Error ? error.message : 'Request failed', variant: 'error' }))}>
                       <Download size={13} />
                     </Button>
+                    {viewingAs !== 'client' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Delete ${file.name}`}
+                        disabled={fileActionId === file.id}
+                        onClick={() => void handleDelete(file)}
+                      >
+                        <Trash2 size={13} className="text-red-600" />
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {file.reviewNote && (

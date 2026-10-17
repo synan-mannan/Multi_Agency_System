@@ -114,13 +114,13 @@ def seed():
         """), {"aid": alpha, "tid": task_public, "author": alpha_admin,
                "body": "Internal note"})
         conn.execute(text("""
-            INSERT INTO time_entries (agency_id, task_id, membership_id, minutes, note)
-            SELECT :aid, :tid, :mid, 45, 'Demo time'
+            INSERT INTO time_entries (agency_id, task_id, membership_id, minutes, entry_date, note)
+            SELECT :aid, :tid, :mid, 45, current_date, 'Demo time'
             WHERE NOT EXISTS (SELECT 1 FROM time_entries WHERE task_id = :tid AND note = 'Demo time')
         """), {"aid": alpha, "tid": task_public, "mid": member_one})
         conn.execute(text("""
-            INSERT INTO time_entries (agency_id, task_id, membership_id, minutes, note)
-            SELECT :aid, :tid, :mid, 90, 'Internal demo time'
+            INSERT INTO time_entries (agency_id, task_id, membership_id, minutes, entry_date, note)
+            SELECT :aid, :tid, :mid, 90, current_date, 'Internal demo time'
             WHERE NOT EXISTS (SELECT 1 FROM time_entries WHERE task_id = :tid AND note = 'Internal demo time')
         """), {"aid": alpha, "tid": task_internal, "mid": member_two})
         seeded_files = {}
